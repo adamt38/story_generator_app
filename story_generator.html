@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Story Generator</title>
+<style>
+    body { font-family: 'Gill Sans', 'Gill Sans MT', 'Calibri', 'Trebuchet MS', sans-serif, Arial, sans-serif, sans-serif; padding: 20px; text-align: center;}
+    .container { max-width: 600px; margin: auto; margin-bottom: 20px; }
+    input, select, button, textarea { 
+        width: 100%; 
+        padding: 10px; 
+        margin: 10px 0; 
+        box-sizing: border-box;
+    }
+    #messageDisplay, #storyDisplay { margin-top: 20px; padding: 20px; background-color: #f0f0f0; }
+    .error { background-color: #ffcccc; }
+    .success { background-color: #ccffcc; }
+    .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>Story Generator</h1>
+    <input type="text" id="serverAddress" placeholder="Fill this out with the address given after 'Running on {address here}.' Be sure to include the port!" />
+    <button onclick="pingServer()">Ping Server</button>
+    
+    <input type="number" id="activityCount" placeholder="Number of activities (default: 5)" />
+    <button onclick="getActivities()">Get Activities</button>
+    
+    <select id="activityType" class="hidden">
+    </select>
+
+    <input type="text" id="name" placeholder="Your Name" required />
+    <input type="text" id="product_id" placeholder="Product ID" required />
+    <input type="text" id="storyStarter" placeholder="Story Starter (optional)" />
+    <button onclick="generateStory()">Generate Story</button>
+    
+    <div id="messageDisplay" class="hidden"></div>
+    <textarea id="storyDisplay" class="hidden"></textarea>
+</div>
+
+<script>
+const defaultServerAddress = 'http://localhost:5000';
+
+function getServerAddress() {
+    const serverAddressInput = document.getElementById("serverAddress");
+    return serverAddressInput.value.trim() || defaultServerAddress;
+}
+
+function displayMessage(message, isSuccess = false) {
+    const messageDisplay = document.getElementById("messageDisplay");
+    messageDisplay.textContent = message;
+    messageDisplay.className = isSuccess ? 'success' : 'error';
+    messageDisplay.classList.remove("hidden");
+    
+    setTimeout(() => {
+        messageDisplay.classList.add("hidden");
+    }, 3000);
+}
+
+function getActivities() {
+    const serverAddress = getServerAddress();
+    const activityCount = document.getElementById("activityCount").value || 5;
+    fetch(`${serverAddress}/get-activities/${activityCount}`)
+        .then(response => response.json())
+        .then(data => {
+            const activityTypeSelect = document.getElementById("activityType");
+            activityTypeSelect.innerHTML = '<option value="">Select an activity type</option>';
+            data.forEach(activity => {
+                const option = document.createElement("option");
+                option.value = activity;
+                option.text = activity;
+                activityTypeSelect.appendChild(option);
+            });
+            activityTypeSelect.classList.remove("hidden");
+            displayMessage('Activities fetched successfully.', true);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            displayMessage('Failed to fetch activities. Make sure your Flask server is running at the right address and returning values!');
+        });
+}
+
+function generateStory() {
+    const serverAddress = getServerAddress();
+    const activityType = document.getElementById("activityType").value;
+    const name = document.getElementById("name").value;
+    const productID = document.getElementById("product_id").value;
+    const storyStarter = document.getElementById("storyStarter").value;
+
+    if (!name || !productID) {
+        displayMessage('Name and Product ID are required.', false);
+        return;
+    }
+
+    const storyDisplay = document.getElementById("storyDisplay");
+    storyDisplay.classList.add("hidden");
+    displayMessage('Generating story, please wait...', true);
+
+    fetch(`${serverAddress}/generate-story`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ activity_type: activityType, name, product_id: productID, story_starter: storyStarter })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to generate story.');
+        }
+        return response.text();
+    })
+    .then(story => {
+        document.getElementById("messageDisplay").classList.add("hidden");
+        
+        storyDisplay.value = story;
+        storyDisplay.classList.remove("hidden");
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        displayMessage('Failed to generate story. Make sure your Flask server is running at the right address and returning values!');
+    });
+}
+
+function pingServer() {
+    const serverAddress = getServerAddress();
+    fetch(`${serverAddress}/hello_world`)
+        .then(response => response.text())
+        .then(data => displayMessage('Ping Server: ' + data, true))
+        .catch(error => {
+            console.error('Error:', error);
+            displayMessage('Ping Server: Failed. Make sure your Flask server is running at the right address and returning values!');
+        });
+}
+</script>
+</body>
+</html>
